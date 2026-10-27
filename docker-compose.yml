@@ -1,0 +1,10 @@
+# Fútbol Pixel 26 en el home lab: Portainer → Stacks → Add stack → Repository.
+# Portainer descarga este repositorio y construye la imagen con el Dockerfile.
+services:
+  futbol:
+    build: .
+    image: futbol-pixel:latest
+    container_name: futbol-pixel
+    restart: unless-stopped
+    ports:
+      - "8090:80"
