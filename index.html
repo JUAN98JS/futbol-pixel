@@ -293,7 +293,7 @@ button:focus-visible,.kitpick:focus-visible,.sqrow:focus-visible,input:focus-vis
           <tr><td>TIRO y enseguida PASE</td><td>Amago de tiro</td></tr>
         </table>
         <h3>Control de PS4</h3>
-        <p>Palanca izquierda o cruceta: moverse · ✕ pase/quitar · ○ tiro/barrida · △ hueco/presionar · □ centro/cambiar · L1 regate · R1 o R2 correr · L2 o panel táctil: tomar al portero · OPTIONS pausa. En el menú, ✕ para jugar.</p>
+        <p>Palanca izquierda o cruceta: moverse · ✕ pase/quitar · ○ tiro/barrida · △ hueco/presionar · □ centro/cambiar · palanca derecha: cambiar al compañero hacia donde la mueves · R1 al recibir: toque largo · L1 regate · R1 o R2 correr · L2 o panel táctil: tomar al portero · OPTIONS pausa. En el menú, ✕ para jugar.</p>
         <h3>Teléfono</h3>
         <p>Ponlo horizontal. El joystick aparece donde toques en la mitad izquierda; los botones están a la derecha y cambian de nombre cuando defiendes.</p>
       </div>
@@ -1328,6 +1328,8 @@ function padPoll(){
   for(const a in want){if(want[a]&&!padHeld[a]){press(a);padHeld[a]=1}else if(!want[a]&&padHeld[a]){release(a);padHeld[a]=0}}
   let x=gp.axes[0]||0,z=gp.axes[1]||0;if(hyp(x,z)<.2)x=z=0;  // zona muerta de la palanca
   inp.gx=x+(now[15]?1:0)-(now[14]?1:0);inp.gy=z+(now[13]?1:0)-(now[12]?1:0);
+  const rx=gp.axes[2]||0,rz=gp.axes[3]||0,rm=hyp(rx,rz);  // palanca derecha: un toque hacia un compañero = cambiar a él
+  if(rm>.7&&!M.rsHeld)M.rsFlick={x:rx,z:rz};M.rsHeld=rm>.4;
 }
 function rumble(ms,s){
   const gp=!M.demo&&padOn&&getPad();
@@ -1521,7 +1523,20 @@ function skillMove(p){
   else if(a.kind==='amago'){if(k<.45){vx=fx;vz=fz}else{vx=(fx*.5+px)*6.2;vz=(fz*.5+pz)*6.2}}
   p.vel.x=vx;p.vel.z=vz;
 }
-function switchPlayer(T){const c=active(T).filter(p=>p.role!=='GK'&&p!==M.userP).sort((a,b)=>dist(a,ball.p)-dist(b,ball.p));if(c[0])M.userP=c[0]}
+function reachT(p){const ip=interceptPoint(p);return hyp(ip.x-p.pos.x,ip.z-p.pos.z)/(7.2*p.spd)}  // segundos que tarda en llegar al balón
+function switchCand(T,dir){ // como en FC: sin dirección, el que llega antes al balón (mejor si está entre el balón y su arco); con la palanca derecha, el compañero hacia donde apuntas
+  const cur=M.userP;let best=null,bs=1e9;
+  for(const p of active(T)){
+    if(p.role==='GK'||p===cur)continue;let s;
+    if(dir&&cur){const dx=p.pos.x-cur.pos.x,dz=p.pos.z-cur.pos.z,d=hyp(dx,dz)||1,al=(dx*dir.x+dz*dir.z)/(d*(hyp(dir.x,dir.z)||1));if(al<.5)continue;s=d*(1.6-al)}
+    else s=reachT(p)+((p.pos.x-ball.p.x)*T.side<0?0:.6);
+    if(s<bs){bs=s;best=p}
+  }
+  return best;
+}
+function switchPlayer(T,dir){const c=switchCand(T,dir);if(c)M.userP=c}
+// Primer toque: pases fuertes, poca técnica, presión o recibir de espaldas hacen que el control se escape (0..0.45)
+const touchRisk=(skill,sp,y,press,off)=>sp<6?0:clamp(Math.max(0,sp-14)*.02+(1-skill)*.25+(press?.08:0)+off*.15+(y>.5?.08:0)+(S.preset?.04:0),0,.45);
 function onPossession(p){
   p.expect=0;p.runTo=null;if(p.tm!==M.user)return;M.userP=p;
   const d=p.role!=='GK'&&inputDir();if(d){p.face=Math.atan2(d.x,d.z);const v=Math.max(hyp(p.vel.x,p.vel.z),2.5);p.vel.x=d.x*v;p.vel.z=d.z*v}  // primer toque orientado hacia donde apuntas
@@ -1552,8 +1567,12 @@ function ballControl(){ // quién controla un balón suelto
   }
   if(b.y>.95&&!(b.y<1.6&&sp<13)){header(p);return}
   if(touchBall(p))return;
-  if(sp>21&&Math.random()<.4){ball.v.multiplyScalar(-.25);ball.v.y=Math.abs(ball.v.y)+1;p.noTouch=.3;return}  // rebote
+  if(Math.random()<touchRisk(p.skill,sp,b.y,underPressure(p),bodyOff(p,Math.atan2(-ball.v.x,-ball.v.z)))){ // control largo: el balón se le escapa
+    const a=rand(-.7,.7),k=rand(.2,.4),vx=ball.v.x*k,vz=ball.v.z*k;
+    ball.v.set(vx*Math.cos(a)+vz*Math.sin(a),Math.max(0,ball.v.y)*.3+rand(0,1.2),vz*Math.cos(a)-vx*Math.sin(a));ball.last=p;ball.shot=null;p.noTouch=.3;return;
+  }
   ball.owner=p;ball.shot=null;onPossession(p);
+  const kd=p===M.userP&&inp.sprint&&inputDir();if(kd&&sp>4)kickBall(p,kd.x*8,0,kd.z*8,'flick',.2);  // CORRER al recibir: toque largo hacia donde apuntas
 }
 function gkDive(p,tz,ty){
   if(p.act&&p.act.type==='dive')return;
@@ -1579,6 +1598,15 @@ function formationTarget(p,att,bxw,bzw){ // posición táctica según dónde est
   if(p.role==='DF')x=Math.max(-47,Math.min(x,att?12:bx+3));
   if(att&&p.role!=='DF')x=Math.min(x,Math.max(offLine(T),bx)-.6);  // no quedar en fuera de juego
   return{x:clamp(x,-HL+2,HL-2)*s,z:clamp(z,-HW+1.5,HW-1.5)};
+}
+function supportSpot(p,c){ // como en FC: el compañero más cercano se ofrece en un hueco libre para el pase corto
+  const s=p.tm.side;let best=null,bs=-1e9;
+  for(let i=0;i<8;i++){
+    const a=i/8*Math.PI*2,x=clamp(c.pos.x+Math.cos(a)*11,-HL+2,HL-2),z=clamp(c.pos.z+Math.sin(a)*11,-HW+2,HW-2),q={pos:{x,z},tm:p.tm};
+    const sc=Math.min(nearestOpp(q),8)-laneBlock(c,q)*2+(x-c.pos.x)*s*.08-hyp(x-p.pos.x,z-p.pos.z)*.05;
+    if(sc>bs){bs=sc;best={x,z}}
+  }
+  return best;
 }
 function interceptPoint(p){ // dónde alcanzo el balón en movimiento
   if(ball.owner)return{x:ball.p.x,z:ball.p.z};
@@ -1614,6 +1642,15 @@ function aiUpdate(dt){
     const userFirst=T===M.user&&near[0]===M.userP;
     const helper=T===M.user&&inp.skill&&theirs?near.find(p=>p!==M.userP):null;  // botón AYUDA
     const att=mine||!owner&&!!ball.last&&ball.last.tm===T;
+    let sup=null;
+    if(mine){
+      sup=active(T).filter(q=>q!==owner&&q!==M.userP&&q.role!=='GK').sort((a,b)=>dist(a,owner.pos)-dist(b,owner.pos))[0];
+      const s=T.side,ox=owner.pos.x*s,line=offLine(T);
+      if(ox>-10&&ox<line&&Math.random()<dt*.35){ // desmarque de ruptura: un delantero (a veces un medio) corre a la espalda de la defensa
+        const r=active(T).filter(q=>q!==owner&&q!==M.userP&&!(q.runTo&&q.runTo.t>0)&&(q.role==='FW'||q.role==='MF'&&Math.random()<.3)&&!offsidePos(q)&&Math.abs(q.pos.x*s-line)<10);
+        if(r.length){const q=pick(r);q.runTo={x:clamp(line+rand(6,12),-HL+4,HL-4)*s,z:clamp(q.pos.z*.8,-HW+4,HW-4),t:2.2}}
+      }
+    }
     for(const p of active(T)){
       if(p===M.userP||p.fallen>0)continue;
       if(p.role==='GK'){gkAI(p,dt);continue}
@@ -1627,6 +1664,7 @@ function aiUpdate(dt){
       if(!p.tg)p.tg=f;else{const k=Math.min(1,dt*2.2);p.tg={x:p.tg.x+(f.x-p.tg.x)*k,z:p.tg.z+(f.z-p.tg.z)*k}}
       let t=p.tg,max=(hyp(t.x-p.pos.x,t.z-p.pos.z)>10?6.6:5.2)*p.spd,arrive=1.6;  // lejos de su sitio: esprinta para volver
       if(p.runTo&&p.runTo.t>0){p.runTo.t-=dt;t=p.runTo;max=7.4*p.spd}
+      else if(p===sup){if((p.supT=(p.supT||0)-dt)<0||!p.supP||hyp(p.supP.x-owner.pos.x,p.supP.z-owner.pos.z)>14){p.supT=.7;p.supP=supportSpot(p,owner)}t=p.supP;max=6.2*p.spd}
       if(!owner){
         if(p.expect>0||p===near[0]&&!userFirst||p===near[1]&&dist(p,ball.p)<12){t=interceptPoint(p);max=7.4*p.spd;arrive=8}  // al balón sin frenar
       }else if(theirs){
@@ -1664,6 +1702,7 @@ function carrierAI(p,dt){
     else if(r<.63+(p.skill-.8)*.5)return doSkill(p,null,pick(['bici','ruleta','arrastre','sombrero']));
   }
   if(r<.16){const q=bestPassTarget(p,{x:s,z:0},'ground',false);if(q&&(q.pos.x-p.pos.x)*s>4)return doPass(p,'ground',null,q)}
+  if(r>.8){const run=active(T).filter(q=>q!==p&&q.runTo&&q.runTo.t>0&&!offsidePos(q)&&(q.pos.x-p.pos.x)*s>2);if(run.length)return doPass(p,'through',null,pick(run))}  // ve el desmarque y la mete al hueco
   if(r>.93){const f=active(T).filter(q=>q.role==='FW'&&q!==p&&!offsidePos(q));if(f.length){const q=pick(f);if((q.pos.x-p.pos.x)*s>2)return doPass(p,'through',null,q)}}
 }
 function gkAI(p,dt){
@@ -1691,7 +1730,8 @@ function gkAI(p,dt){
 function userUpdate(dt){
   const T=M.user;if(!T)return;
   const poss=ball.owner?ball.owner.tm:null;
-  if(poss!==M.prevPoss){if(poss===other(T)&&!M.gkCtl&&S.autoSw)M.userP=nearestTo(T,ball.p);M.prevPoss=poss}
+  // Cambio de jugador (como en FC): 0 manual · 1 solo balones sueltos y aéreos · 2 automático (además, al perder el balón)
+  if(poss!==M.prevPoss){if(poss===other(T)&&!M.gkCtl&&S.autoSw===2)M.userP=nearestTo(T,ball.p);M.prevPoss=poss}
   let p=M.userP;
   // Q / L2 / panel táctil del control: tomar o soltar al portero (para salir a achicar o cubrir el arco)
   const gk=T.players[0];
@@ -1700,8 +1740,15 @@ function userUpdate(dt){
   if(!p||p.off||p.role==='GK'&&ball.owner!==p&&!M.gkCtl)p=M.userP=nearestTo(T,ball.p);
   if((M.switchT-=dt)<0){ // cambio automático si mi jugador quedó muy lejos del balón
     M.switchT=.5;
-    if(poss===other(T)&&!M.gkCtl&&S.autoSw&&dist(p,ball.p)>20){const n=nearestTo(T,ball.p);if(dist(n,ball.p)<dist(p,ball.p)-8)p=M.userP=n}
+    if(poss===other(T)&&!M.gkCtl&&S.autoSw===2&&dist(p,ball.p)>20){const n=nearestTo(T,ball.p);if(dist(n,ball.p)<dist(p,ball.p)-8)p=M.userP=n}
   }
+  // balón suelto o aéreo que no es un pase nuestro (ni tu propio toque largo): pasas al que llega antes
+  if(S.autoSw&&!ball.owner&&!M.gkCtl&&(M.looseT=(M.looseT||0)-dt)<0){
+    M.looseT=.25;
+    if(!T.players.some(q=>q.expect>0)&&!(ball.last===p&&dist(p,ball.p)<8)){const n=switchCand(T);if(n&&reachT(n)<reachT(p)-.4)p=M.userP=n}
+  }
+  if(M.rsFlick){if(ball.owner!==p){M.gkCtl=false;switchPlayer(T,M.rsFlick);p=M.userP}M.rsFlick=null}  // palanca derecha: cambio dirigido
+  M.nextP=poss===T?null:switchCand(T);  // a quién pasarías con □ / L (aro blanco en el césped)
   const dir=inputDir(),own=ball.owner===p,theirs=poss===other(T);
   p.lookAt=null;
   const max=(inp.sprint?7.6:5.3)*p.spd*(own?.97:1);  // FC 26: se conduce más rápido al trote
@@ -1926,6 +1973,7 @@ function showEnd(){
 
 // ===================== 12. Cámara de TV, marcador y radar =====================
 const marker=new THREE.Mesh(new THREE.ConeGeometry(.45,.9,4),new THREE.MeshBasicMaterial({color:0xffd21f}));marker.rotation.x=Math.PI;scene.add(marker);
+const nextRing=new THREE.Mesh(new THREE.RingGeometry(.6,.8,24),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.75,side:THREE.DoubleSide,depthWrite:false}));nextRing.rotation.x=-Math.PI/2;scene.add(nextRing);
 const rctx=$('radar').getContext('2d');
 const TB_A={shoot:'TIRO',pass:'PASE',through:'HUECO',lob:'CENTRO',skill:'REGATE',sprint:'CORRER'};
 const TB_D={shoot:'BARRIDA',pass:'QUITAR',through:'PRESIONAR',lob:'CAMBIAR',skill:'AYUDA',sprint:'CORRER'};
@@ -2017,6 +2065,7 @@ function render(el){
   }
   const u=M.userP;marker.visible=!!(u&&!u.off&&M.user&&M.ui==='game'&&M.state!=='goal'&&M.state!=='var'&&camW<.3);
   if(marker.visible)marker.position.set(u.pos.x,2.8+Math.sin(M.t*6)*.12,u.pos.z);
+  const nx=M.nextP;nextRing.visible=marker.visible&&!!nx&&!nx.off;if(nextRing.visible)nextRing.position.set(nx.pos.x,.06,nx.pos.z);
   const near=Math.max(0,1-(HL-Math.abs(b.x))/30)*(Math.abs(b.z)<24?1:.4),heat=Math.max(M.heat,near*.7);
   if(STANDS.visible&&(!LOWQ||M.frame%2===0))crowdUpdate(M.t,heat);
   if((crowdT-=el)<0){crowdT=.12;crowdSound(Math.max(heat,crowdEx[0],crowdEx[1]))}
@@ -2115,7 +2164,7 @@ const SETS=[
   ['Jugabilidad','diff','Dificultad',['Fácil','Normal','Difícil']],
   ['Jugabilidad','dur','Duración de cada tiempo',['3 min','5 min','8 min'],'Se aplica en el próximo partido'],
   ['Jugabilidad','assist','Ayuda en los pases',['Sin','Media','Fuerte'],'Cuánto se imanta el pase al compañero al que apuntas'],
-  ['Jugabilidad','autoSw','Cambio automático de jugador',['No','Sí'],'Al defender, pasar solo al jugador más cercano al balón'],
+  ['Jugabilidad','autoSw','Cambio de jugador',['Manual','Balones sueltos','Automático'],'Manual: cambias tú (□ / L, o la palanca derecha hacia el compañero). Balones sueltos: cambia solo en rechaces y balones aéreos. Automático: además, al perder el balón'],
   ['Jugabilidad','var','VAR',['No','Sí'],'Revisión en penales y rojas directas'],
   ['Cámara','cam','Cámara de juego',['TV','TV cercana','Alta']],
   ['Cámara','zoom','Distancia de la cámara',['Cerca','Normal','Lejos'],'Lejos muestra más cancha'],
@@ -2210,6 +2259,9 @@ function selfTest(){
   eq(bodyOff(bp,0),0,'quieto y de frente: postura perfecta');
   eq(Math.round(bodyOff(bp,Math.PI)*10),10,'de espaldas: la peor postura');
   bp.vel.z=7.6;eq(Math.round(bodyOff(bp,0)*100),35,'corriendo a tope pierde algo de precisión');
+  eq(touchRisk(.6,4,0,true,1),0,'balón lento: el control nunca se escapa');
+  console.assert(touchRisk(.9,10,0,false,0)<touchRisk(.6,25,1,true,1),'pase fuerte, alto, con presión y de espaldas: más riesgo');
+  console.assert(touchRisk(.3,40,2,true,1)<=.45,'el riesgo tiene tope');
   console.log('Autoprueba de reglas terminada');
 }
 if(Q.has('test'))selfTest();
