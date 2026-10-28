@@ -144,6 +144,40 @@ body.hub #fps{display:none}
 .vs b{font:900 italic 30px system-ui;color:#ffffffb0}
 @media (max-width:820px){.tnlogo,.tnclub span{display:none}#tabs button{padding:20px 9px;font-size:13px}}
 @media (max-width:620px),(max-height:520px){.tiles{grid-template-columns:1.3fr 1fr 1fr;grid-template-rows:repeat(2,minmax(100px,1fr));gap:10px;height:100%}.tile{padding:10px 12px}.ttl{font-size:17px}.hero .ttl{font-size:24px}.tsub{font-size:11px}.tic{width:40px;height:40px;font-size:28px;line-height:40px}.tcap{left:12px;top:9px;font-size:10px}.vs b{font-size:20px}}
+/* Jugar: local / visitante como en FC, con tarjetas de vidrio sobre fondo verde */
+body.hub #mplay{background:radial-gradient(ellipse at 50% 25%,#2aa57acc,#0d4a3ff0 55%,#051a17f7)}
+.versus{display:grid;grid-template-columns:minmax(0,340px) minmax(170px,230px) minmax(0,340px);gap:22px;justify-content:center;width:100%;margin:auto}
+.side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.lgrow,.tcard,.lgcard{width:100%;background:#ffffff17;border:1px solid #ffffff2e;border-radius:6px;backdrop-filter:blur(8px);color:var(--txt);font:inherit}
+.lgrow{display:flex;align-items:center;justify-content:space-between;gap:10px;height:54px;padding:0 8px;font:700 19px system-ui;cursor:pointer}
+.lgrow b{flex:1;text-align:center}
+.flag{width:52px;height:34px;flex:none;display:grid;place-items:center;border-radius:2px;box-shadow:0 0 0 1px #0004;font-style:normal;font-size:28px}
+.tcard{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 12px 0;overflow:hidden;cursor:pointer}
+.tcard .tn{font:900 24px system-ui;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tcard .cr{display:flex;align-items:center;gap:22px}
+.tcard .cr img{width:130px;height:130px;filter:drop-shadow(0 6px 14px #0008)}
+.ca{padding:8px;color:#fff;opacity:.85;font-size:15px;cursor:pointer}
+.ca:hover{opacity:1;color:var(--acc)}
+.tcard .stars{font-size:18px}
+.rt{display:flex;justify-content:center;gap:32px;align-self:stretch;margin:2px -12px 0;padding:6px 0 8px;background:#0003}
+.rt span{display:flex;flex-direction:column;align-items:center;font:600 12px system-ui;color:#ffffffc0}
+.rt b{font:500 26px system-ui;color:#fff}
+.lgrow:focus-visible,.tcard:focus-visible{outline:none;border-color:#fff;box-shadow:0 0 0 2px #fff,0 0 26px #ffffff59}
+.side .kits{margin:0}
+.lgcard{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px}
+.lgcard small{font:700 12px system-ui;color:#ffffffb0}
+.lgcard b{font:900 italic 24px system-ui;letter-spacing:.02em}
+.mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center}
+.mid .seg{flex-direction:column;width:100%}
+.mid .seg button{background:#ffffff14}
+.mid .seg button.on{background:var(--acc)}
+.mid .note{margin:0;color:#ffffffc0}
+.mid .sec{margin:0;background:#ffffff14;border-color:#ffffff2e}
+.vside{position:fixed;top:50%;left:calc(18px + var(--sl));font:900 64px system-ui;letter-spacing:.08em;color:#ffffff2e;writing-mode:vertical-rl;transform:translateY(-50%) rotate(180deg);pointer-events:none}
+.vside.r{left:auto;right:calc(18px + var(--sr));transform:translateY(-50%)}
+@media (max-width:1080px){.vside{display:none}}
+@media (max-width:820px){.versus{grid-template-columns:minmax(0,1fr) 150px minmax(0,1fr);gap:10px}.tcard .tn{font-size:18px}.tcard .cr img{width:84px;height:84px}.tcard .cr{gap:8px}.lgrow{font-size:15px}.rt{gap:18px}.rt b{font-size:20px}}
+@media (max-height:520px){.lgcard,#matchinfo{display:none}.versus{gap:10px}.side{gap:6px}.lgrow{height:40px}.flag{width:40px;height:26px;font-size:20px}.tcard{padding-top:6px;gap:2px}.tcard .cr img{width:64px;height:64px}.tcard .stars{font-size:13px}.rt{padding:2px 0 4px}.rt b{font-size:17px}.side .kitpick .kit{transform:scale(.55);margin:-10px auto -14px}.mid{gap:5px}.mid .seg button{padding:5px}}
 @media (max-height:520px){#topnav{height:50px}#tabs button{padding:15px 10px}body.hub .screen{padding-top:58px;padding-bottom:40px}#botnav{padding:6px 16px;font-size:11px}}
 .panel.wide{max-width:980px}
 .note{color:var(--mut);font-size:13px;text-align:center;margin:4px 0 10px;min-height:1em}
@@ -247,17 +281,18 @@ button:focus-visible,.kitpick:focus-visible,.sqrow:focus-visible,input:focus-vis
 </div>
 
 <div id="mplay" class="screen hide">
-  <div class="panel">
-    <h2>Partido amistoso</h2>
-    <div class="pick">
-      <div class="team"><div class="lbl">Tu equipo</div><div class="row"><button class="arrow" data-t="0" data-d="-1">‹</button><div id="t0"></div><button class="arrow" data-t="0" data-d="1">›</button></div><div class="kits" id="kits0"></div></div>
-      <div class="team"><div class="lbl">Rival</div><div class="row"><button class="arrow" data-t="1" data-d="-1">‹</button><div id="t1"></div><button class="arrow" data-t="1" data-d="1">›</button></div><div class="kits" id="kits1"></div></div>
+  <!-- como en FC: local a la izquierda y visitante a la derecha; arriba el país o liga, abajo el equipo -->
+  <div class="vside l">LOCAL</div><div class="vside r">VISITANTE</div>
+  <div class="versus">
+    <div class="side" id="side0"></div>
+    <div class="mid">
+      <div class="lbl">Balón</div><div class="seg" id="sball"></div>
+      <div class="note" id="matchinfo"></div>
+      <div class="note" id="kitwarn"></div>
+      <button class="big" id="bplay">EMPEZAR</button>
+      <button class="sec" data-back>Volver</button>
     </div>
-    <div class="note" id="kitwarn"></div>
-    <div class="ballrow"><div class="lbl">Balón</div><div class="seg" id="sball"></div></div>
-    <div class="note" id="matchinfo"></div>
-    <button class="big" id="bplay">EMPEZAR</button>
-    <button class="sec" data-back>Volver</button>
+    <div class="side" id="side1"></div>
   </div>
 </div>
 
@@ -686,7 +721,7 @@ function drawCrest(g,s,e){ // centrado en (0,0), s = alto
   if(crown){g.fillStyle='#febe10';g.beginPath();g.moveTo(-s*.2,-s*.48);g.lineTo(-s*.24,-s*.7);g.lineTo(-s*.1,-s*.58);g.lineTo(0,-s*.74);g.lineTo(s*.1,-s*.58);g.lineTo(s*.24,-s*.7);g.lineTo(s*.2,-s*.48);g.fill()}
 }
 const crestURLs={};
-const crestURL=ti=>crestURLs[ti]||(crestURLs[ti]=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');g.translate(32,36);drawCrest(g,48,crestOf(TEAMS[ti]));return c.toDataURL()})());
+const crestURL=ti=>crestURLs[ti]||(crestURLs[ti]=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.translate(64,72);drawCrest(g,96,crestOf(TEAMS[ti]));return c.toDataURL()})());  // 128 px: se ve nítido también en grande
 // Rellena el dibujo del uniforme. P = paneles del torso [x, ancho]; fy(f) = y en la textura para la altura f del torso (0 abajo, 1 hombros); sl = zona de mangas
 function paintKit(g,W,H,kit,P,fy,sl){
   const[c1,c2]=kit,p=kitPat(kit);g.fillStyle=c1;g.fillRect(0,0,W,H);g.fillStyle=c2;
@@ -1333,6 +1368,7 @@ function menuNav(dx,dy){
   const tabs=document.body.classList.contains('hub')?[...$('tabs').children]:[];  // en el menú principal también se sube a las pestañas
   const els=[...tabs,...scr.querySelectorAll('button,input[type=range]')].filter(e=>e.offsetParent!==null),cur=document.activeElement;
   if(!els.includes(cur)){const f=els.find(e=>!tabs.includes(e))||els[0];if(f)f.focus();return}
+  if(dx&&cur.dataset.cyc)return cycleSel(cur.dataset.cyc,+cur.dataset.t,dx);  // Jugar: ◀ ▶ cambian la liga o el equipo, como en FC
   if(cur.type==='range'&&dx){cur.value=+cur.value+dx*5;cur.dispatchEvent(new Event('input'));return}
   const r0=cur.getBoundingClientRect(),cx=r0.x+r0.width/2,cy=r0.y+r0.height/2;let best=null,bs=1e9;
   for(const e of els){
@@ -1346,6 +1382,7 @@ addEventListener('keydown',e=>{
     const nav={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],KeyW:[0,-1],KeyS:[0,1],KeyA:[-1,0],KeyD:[1,0]}[e.code];
     if(nav){e.preventDefault();menuNav(...nav);return}
     if(e.code==='KeyQ'||e.code==='KeyE'){e.preventDefault();tabStep(e.code==='KeyQ'?-1:1);return}
+    if(e.code==='KeyR'&&!$('mplay').classList.contains('hide')){randomTeams();return}
     if(e.code==='Escape'||e.code==='Backspace'||e.code==='KeyP'&&M.paused){e.preventDefault();goBack();return}
     if(e.code==='KeyM')toggleMute();
     return;  // Enter / Espacio: el navegador pulsa el botón enfocado
@@ -1373,6 +1410,7 @@ function padPoll(){
     if(edge(0)){const a=document.activeElement;if(a&&a!==document.body&&a.click)a.click();else menuNav(0,1)}
     else if(edge(1)||edge(9))goBack();
     else if(edge(4)||edge(5))tabStep(edge(4)?-1:1);
+    else if(edge(2)&&!$('mplay').classList.contains('hide'))randomTeams();  // □ al azar
     for(const a in want)padHeld[a]=want[a];  // lo que siga apretado al salir del menú no cuenta como pase o tiro
     return;
   }
@@ -2192,16 +2230,43 @@ const kitHTML=k=>{const[a,b]=k,p=kitPat(k),e=k[5]||b;
 const stars=r=>{const n=clamp(Math.round((r-72)/3.2),1,5);return'★'.repeat(n)+'☆'.repeat(5-n)};
 const KIT_N=['Local','Visitante','Alterno'];
 function autoKit(){selKit[1]=[0,1,2].find(k=>colDist(kitsOf(selU)[selKit[0]][0],kitsOf(selC)[k][0])>=150)??1}  // el rival se cambia si se parece al tuyo
+// Ligas en el orden de FC: arriba se elige el país (o "Internacional" para selecciones) y abajo el equipo de esa liga
+const LEAGUES=[
+  {l:'Selecciones',c:'Internacional',f:'#1f4e8c',e:'🌍'},
+  {l:'LaLiga',c:'España',f:'linear-gradient(#aa151b 25%,#f1bf00 25% 75%,#aa151b 75%)'},
+  {l:'Premier League',c:'Inglaterra',f:'linear-gradient(90deg,transparent 43%,#ce1124 43% 57%,transparent 57%),linear-gradient(transparent 40%,#ce1124 40% 60%,transparent 60%),#fff'},
+  {l:'Serie A',c:'Italia',f:'linear-gradient(90deg,#009246 33.3%,#fff 33.3% 66.6%,#ce2b37 66.6%)'},
+  {l:'Bundesliga',c:'Alemania',f:'linear-gradient(#000 33.3%,#dd0000 33.3% 66.6%,#ffce00 66.6%)'},
+  {l:'Ligue 1',c:'Francia',f:'linear-gradient(90deg,#0055a4 33.3%,#fff 33.3% 66.6%,#ef4135 66.6%)'},
+];
+const lgOf=ti=>LEAGUES.findIndex(L=>L.l===(TEAMS[ti].l||'Selecciones'));
+const teamsIn=li=>TEAMS.map((_,j)=>j).filter(j=>lgOf(j)===li);
+function lineRatings(ti){ // DEL / MED / DEF: media de los titulares en cada línea
+  const P=squadPlayers(ti),sq=getSquad(ti),r=FORMS[sq.form].r,avg=c=>{const v=[...r].map((x,i)=>x===c?P[sq.order[i]].r:0).filter(Boolean);return Math.round(v.reduce((a,b)=>a+b,0)/(v.length||1))};
+  return[avg('F'),avg('M'),avg('D')];
+}
+function cycleSel(kind,i,d){ // ◀ ▶: cambiar de liga o de equipo dentro de la liga (nunca el mismo que el otro lado)
+  const cur=i?selC:selU,oth=i?selU:selC;let v;
+  if(kind==='lg'){const li=(lgOf(cur)+d+LEAGUES.length)%LEAGUES.length;v=teamsIn(li).find(j=>j!==oth)}
+  else{const L=teamsIn(lgOf(cur)).filter(j=>j!==oth);v=L[(L.indexOf(cur)+d+L.length)%L.length]}
+  if(i)selC=v;else{selU=v;selKit[0]=0}
+  autoKit();drawPick();$('side'+i).querySelector(`[data-cyc="${kind}"]`).focus();
+}
+function randomTeams(){
+  selU=Math.random()*TEAMS.length|0;do selC=Math.random()*TEAMS.length|0;while(selC===selU);
+  selKit[0]=0;autoKit();drawPick();
+}
 function drawPick(){
   [[0,selU],[1,selC]].forEach(([i,sel])=>{
-    const t=TEAMS[sel];
-    const lg=[...new Set(TEAMS.map(x=>x.l||'Selecciones'))];
-    $('t'+i).innerHTML=kitHTML(kitsOf(sel)[selKit[i]])+`<div class="tname"><img class="tcrest" alt="" src="${crestURL(sel)}">${t.n}</div><div class="stars">${stars(teamRating(sel))} <small>${teamRating(sel)}</small></div>`
-      +`<select class="tsel" data-t="${i}" aria-label="Elegir equipo">${lg.map(l=>`<optgroup label="${l}">${TEAMS.map((x,j)=>(x.l||'Selecciones')===l?`<option value="${j}"${j===sel?' selected':''}>${x.n}</option>`:'').join('')}</optgroup>`).join('')}</select>`;
-    $('kits'+i).innerHTML=kitsOf(sel).map((k,j)=>`<button class="kitpick${j===selKit[i]?' on':''}" data-t="${i}" data-k="${j}">${kitHTML(k)}${KIT_N[j]}</button>`).join('');
+    const t=TEAMS[sel],L=LEAGUES[lgOf(sel)],[del,med,def]=lineRatings(sel);
+    $('side'+i).innerHTML=
+      `<button class="lgrow" data-cyc="lg" data-t="${i}"><span class="ca" data-d="-1">◀</span><b>${L.c}</b><i class="flag" style="background:${L.f}">${L.e||''}</i><span class="ca" data-d="1">▶</span></button>`
+      +`<button class="tcard" data-cyc="tm" data-t="${i}"><b class="tn">${t.n}</b><span class="cr"><span class="ca" data-d="-1">◀</span><img alt="" src="${crestURL(sel)}"><span class="ca" data-d="1">▶</span></span>`
+      +`<span class="stars">${stars(teamRating(sel))}</span><span class="rt"><span>DEL<b>${del}</b></span><span>MED<b>${med}</b></span><span>DEF<b>${def}</b></span></span></button>`
+      +`<div class="kits" id="kits${i}">${kitsOf(sel).map((k,j)=>`<button class="kitpick${j===selKit[i]?' on':''}" data-t="${i}" data-k="${j}">${kitHTML(k)}${KIT_N[j]}</button>`).join('')}</div>`
+      +`<div class="lgcard"><small>${L.c}</small><b>${L.l}</b></div>`;
   });
-  document.querySelectorAll('.tsel').forEach(s=>s.onchange=()=>{const i=+s.dataset.t,v=+s.value;
-    if(i){if(v===selU)selU=selC;selC=v}else{if(v===selC)selC=selU;selU=v;selKit[0]=0}autoKit();drawPick()});  // si eliges el mismo que el otro, se intercambian
+  document.querySelectorAll('#mplay [data-cyc]').forEach(b=>b.onclick=e=>{const a=e.target.closest('.ca');cycleSel(b.dataset.cyc,+b.dataset.t,a?+a.dataset.d:1)});
   document.querySelectorAll('.kitpick').forEach(b=>b.onclick=()=>{selKit[+b.dataset.t]=+b.dataset.k;drawPick();b.focus&&$('kits'+b.dataset.t).children[b.dataset.k].focus()});
   const clash=colDist(kitsOf(selU)[selKit[0]][0],kitsOf(selC)[selKit[1]][0])<150;
   $('kitwarn').textContent=clash?'⚠ Las camisetas se parecen mucho: elige otro uniforme para no confundirte':'';$('kitwarn').classList.toggle('warn',clash);
@@ -2210,11 +2275,6 @@ function drawPick(){
   $('matchinfo').textContent=`${DURS[S.dur]} min por tiempo · ${['Fácil','Normal','Difícil'][S.diff]} · ${getSquad(selU).form} (cámbialo en Plantilla o Ajustes)`;
   drawHub();  // el escudo de la barra de arriba sigue a tu equipo
 }
-document.querySelectorAll('#mplay .arrow').forEach(b=>b.onclick=()=>{
-  const i=+b.dataset.t,d=+b.dataset.d;let v=i?selC:selU;
-  do v=(v+d+TEAMS.length)%TEAMS.length;while(v===(i?selU:selC));
-  if(i)selC=v;else{selU=v;selKit[0]=0}autoKit();drawPick();
-});
 function seg(id,set){const bs=[...$(id).children];bs.forEach((b,i)=>b.onclick=()=>{bs.forEach(x=>x.classList.remove('on'));b.classList.add('on');set(i)})}
 
 // --- Pantallas: una visible a la vez; "Volver" regresa al menú o a la pausa ---
@@ -2249,8 +2309,8 @@ function drawHub(){ // datos de la portada: tu partido, tu plantilla y tus ajust
   $('hvs').textContent=`${t0.n} vs ${t1.n}`;
   $('hsq').textContent=`${getSquad(selU).form} · Media ${teamRating(selU)}`;
   $('hset').textContent=`${['Fácil','Normal','Difícil'][S.diff]} · ${DURS[S.dur]} min por tiempo`;
-  const k=padOn?['✕','○','L1 R1']:touchOn?null:['Enter','Esc','Q E'];
-  $('botnav').innerHTML=k?`<span><b>${k[0]}</b>Elegir</span><span><b>${k[1]}</b>Volver</span><span><b>${k[2]}</b>Pestañas</span>`:'';
+  const k=padOn?['✕','○','L1 R1','□']:touchOn?null:['Enter','Esc','Q E','R'],pick=!$('mplay').classList.contains('hide');
+  $('botnav').innerHTML=k?`<span><b>${k[0]}</b>Elegir</span><span><b>${k[1]}</b>Volver</span>${pick?`<span><b>${k[3]}</b>Al azar</span>`:''}<span><b>${k[2]}</b>Pestañas</span>`:'';
   $('tnl').textContent=padOn?'L1':'Q';$('tnr').textContent=padOn?'R1':'E';
   $('tnl').classList.toggle('hide',touchOn);$('tnr').classList.toggle('hide',touchOn);
 }
