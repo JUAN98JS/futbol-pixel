@@ -1,0 +1,51 @@
+{
+  "name": "futbol-pixel-26",
+  "version": "1.0.0",
+  "description": "Fútbol Pixel 26 para PC",
+  "author": "JUAN98JS",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.juan98js.futbolpixel26",
+    "productName": "Futbol Pixel 26",
+    "files": [
+      "index.html",
+      "three.min.js",
+      "GLTFLoader.js",
+      "SkeletonUtils.js",
+      "jugador.js",
+      "meshopt_decoder.js",
+      "estadio.glb",
+      "balon_trionda.glb",
+      "balon_rihla.glb",
+      "balon_etrusco.glb",
+      "botines.glb",
+      "electron/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Fútbol Pixel 26"
+    }
+  },
+  "devDependencies": {
+    "electron": "^38.8.6",
+    "electron-builder": "^26.18.0"
+  },
+  "allowScripts": {
+    "electron@38.8.6": true,
+    "electron-winstaller@5.4.0": true
+  }
+}
