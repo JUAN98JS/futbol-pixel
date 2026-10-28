@@ -1669,6 +1669,7 @@ function aiUpdate(dt){
     const userFirst=T===M.user&&near[0]===M.userP;
     const helper=T===M.user&&inp.r1&&theirs?near.find(p=>p!==M.userP):null;  // R1 (mantener): un compañero también presiona
     const att=mine||!owner&&!!ball.last&&ball.last.tm===T;
+    const passing=!owner&&!!ball.last&&ball.last.tm===T&&T.players.some(q=>q.expect>0);
     let sup=null;
     if(mine){
       sup=active(T).filter(q=>q!==owner&&q!==M.userP&&q.role!=='GK').sort((a,b)=>dist(a,owner.pos)-dist(b,owner.pos))[0];
@@ -1693,7 +1694,7 @@ function aiUpdate(dt){
       if(p.runTo&&p.runTo.t>0){p.runTo.t-=dt;t=p.runTo;max=7.4*p.spd}
       else if(p===sup){if((p.supT=(p.supT||0)-dt)<0||!p.supP||hyp(p.supP.x-owner.pos.x,p.supP.z-owner.pos.z)>14){p.supT=.7;p.supP=supportSpot(p,owner)}t=p.supP;max=6.2*p.spd}
       if(!owner){
-        if(p.expect>0||p===near[0]&&!userFirst||p===near[1]&&dist(p,ball.p)<12){t=interceptPoint(p);max=7.4*p.spd;arrive=8}  // al balón sin frenar
+        if(p.expect>0||!passing&&(p===near[0]&&!userFirst||p===near[1]&&dist(p,ball.p)<12)){t=interceptPoint(p);max=7.4*p.spd;arrive=8}  // al balón sin frenar (si el pase va a un compañero, los demás no se lo roban)
       }else if(theirs){
         const c=owner,gx=ownGoalX(T),toG=hyp(gx-c.pos.x,c.pos.z)||1;
         if(p===near[0]&&!userFirst||p===helper){
@@ -1810,23 +1811,24 @@ function userUpdate(dt){
     else if(inp.pressed.through)doPass(p,'through',dir);
     else if(inp.pressed.lob||inp.pressed.shoot)doPass(p,'lob',dir);  // despeje largo
   }else if(own){
+    const mods=M.charge||M.pchg;if(mods){mods.l1=mods.l1||!!inp.l1;mods.r1=mods.r1||!!inp.r1}  // L1/R1 cuentan si se tocaron mientras cargabas, aunque los sueltes a la vez
     if(M.charge){
       M.charge.t+=dt;
       if(inp.pressed.pass&&M.charge.t<.35){M.charge=null;doSkill(p,dir,'amago')}
       else if(!inp.shoot||M.charge.t>1.1){ // al soltar: R1 colocado · L1 vaselina · L1+R1 potente
-        const pw=Math.min(1,M.charge.t/.9),kind=inp.l1&&inp.r1?'power':inp.r1?'finesse':inp.l1?'chip':null;M.charge=null;doShot(p,pw,dir,kind);
+        const c=M.charge,pw=Math.min(1,c.t/.9),kind=c.l1&&c.r1?'power':c.r1?'finesse':c.l1?'chip':null;M.charge=null;doShot(p,pw,dir,kind);
       }
     }
     else if(M.pchg){ // pase cargado: al soltar sale con más o menos fuerza (como en FC)
       const c=M.pchg;c.t+=dt;
       if(!inp[c.key]||c.t>.9){
         M.pchg=null;let kind=c.kind,q=null;
-        if(kind==='ground'&&M.give&&M.give.from!==p&&!M.give.from.off)q=M.give.from;  // pared: ✕ otra vez y vuelve al que picó
-        if(kind==='ground'&&inp.r1)kind='driven';  // R1 + ✕: pase raso tenso
-        if(kind==='through'&&inp.l1)kind='lobthrough';  // L1 + △: al hueco por arriba
-        const one=kind==='ground'&&inp.l1&&!q;M.give=null;
+        if(kind==='ground'&&M.give&&M.give.from!==p&&!M.give.from.off){q=M.give.from;kind='through'}  // pared: ✕ otra vez y vuelve al espacio por donde corre el que picó
+        if(kind==='ground'&&c.r1)kind='driven';  // R1 + ✕: pase raso tenso
+        if(kind==='through'&&c.l1)kind='lobthrough';  // L1 + △: al hueco por arriba
+        const one=kind==='ground'&&c.l1&&!q;M.give=null;
         doPass(p,kind,dir,q,Math.min(1,.45+c.t*.9));  // un toque = pase normal; mantener = más fuerte
-        if(one){p.runTo={x:clamp(p.pos.x+T.side*12,-HL+3,HL-3),z:p.pos.z,t:2.5};M.give={from:p,t:3}}  // L1 + ✕: pared, el que pasa sigue corriendo
+        if(one){p.runTo={x:clamp(p.pos.x+T.side*12,-HL+3,HL-3),z:p.pos.z,t:2.5};M.give={from:p,t:6}}  // L1 + ✕: pared, el que pasa sigue corriendo
       }
     }
     else if(inp.pressed.shoot)M.charge={t:0,p};
