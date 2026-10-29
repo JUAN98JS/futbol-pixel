@@ -408,7 +408,7 @@ const hyp=Math.hypot;
 const Q=new URLSearchParams(location.search);
 const TOUCH=matchMedia('(pointer: coarse)').matches;
 // Ajustes guardados (menú AJUSTES). gfx: 0 baja (sin sombras reales, menos público), 1 media, 2 alta; en teléfonos empieza en baja
-const SET_DEF={gfx:TOUCH?0:2,stadium:1,ball:1,zoom:1,preset:0,fpsUnlock:0,full:1,fps:1,radar:1,diff:1,dur:1,assist:2,swAuto:3,nextSw:0,swInd:1,rsMode:0,rsRef:0,swAssist:0,var:1,cam:0,spCam:1,vol:80,crowd:70,whistle:80,sq:{}};
+const SET_DEF={gfx:TOUCH?0:2,stadium:1,weather:0,ball:1,zoom:1,preset:0,fpsUnlock:0,full:1,fps:1,radar:1,diff:1,dur:1,assist:2,swAuto:3,nextSw:0,swInd:1,rsMode:0,rsRef:0,swAssist:0,var:1,cam:0,spCam:1,vol:80,crowd:70,whistle:80,sq:{}};
 const S=(()=>{let s={};try{s=JSON.parse(localStorage.getItem('fp26')||'{}')||{};const g=localStorage.getItem('gfx');if(g!==null&&s.gfx==null)s.gfx=+g}catch(_){}return{...SET_DEF,...s}})();
 const saveS=()=>{try{localStorage.setItem('fp26',JSON.stringify(S))}catch(_){}};
 if(window.pcApp)S.fpsUnlock=window.pcApp.fpsUnlocked?1:0;  // en la PC manda lo que guardó la app
@@ -580,16 +580,56 @@ if(!window.THREE){
 const canvas=$('c');
 const ren=new THREE.WebGLRenderer({canvas,antialias:!LOWQ,powerPreference:'high-performance'});
 ren.setPixelRatio(Math.min(devicePixelRatio,[TOUCH?1.5:1,1.25,2][GFX]));
-ren.shadowMap.enabled=!LOWQ;
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x0d1322);scene.fog=new THREE.Fog(0x0d1322,170,360);
+ren.shadowMap.enabled=!LOWQ;ren.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();scene.fog=new THREE.Fog(0x0d1322,170,360);
 const cam=new THREE.PerspectiveCamera(26,innerWidth/innerHeight,1,700);
-scene.add(new THREE.HemisphereLight(0xdde6ff,0x2c4a26,.78));
-const sun=new THREE.DirectionalLight(0xffffff,.72);sun.position.set(-30,70,30);
-if(!LOWQ){sun.castShadow=true;sun.shadow.mapSize.setScalar(GFX===2?2048:1024);sun.shadow.bias=-.0005;Object.assign(sun.shadow.camera,{left:-75,right:75,top:55,bottom:-55,near:1,far:220});sun.shadow.camera.updateProjectionMatrix()}
+const hemi=new THREE.HemisphereLight(0xdde6ff,0x2c4a26,.78);scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffffff,.72);
+if(!LOWQ){sun.castShadow=true;sun.shadow.mapSize.setScalar(GFX===2?4096:2048);sun.shadow.bias=-.0003;sun.shadow.normalBias=.03;Object.assign(sun.shadow.camera,{left:-85,right:85,top:85,bottom:-85,near:1,far:300});sun.shadow.camera.updateProjectionMatrix()}
 scene.add(sun);
 const MC={},mat=c=>MC[c]||(MC[c]=new THREE.MeshLambertMaterial({color:c}));
 const GC={},boxGeo=(w,h,d)=>{const k=w+'_'+h+'_'+d;return GC[k]||(GC[k]=new THREE.BoxGeometry(w,h,d))};
 const canvasTex=(w,h,draw)=>{const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'));return new THREE.CanvasTexture(c)};
+
+// Clima y hora: día con sol, noche con reflectores o lluvia. Se cambia en Ajustes sin reiniciar
+const glowTex=canvasTex(128,128,g=>{const r=g.createRadialGradient(64,64,0,64,64,64);r.addColorStop(0,'#fff');r.addColorStop(.18,'rgba(255,255,255,.9)');r.addColorStop(.4,'rgba(255,255,255,.25)');r.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=r;g.fillRect(0,0,128,128)});
+const glowMat=c=>new THREE.SpriteMaterial({map:glowTex,color:c,fog:false,depthWrite:false,blending:THREE.AdditiveBlending});
+const sunDisc=new THREE.Sprite(glowMat(0xfff4d6));sunDisc.scale.setScalar(70);scene.add(sunDisc);
+const FLOOD=new THREE.Group();scene.add(FLOOD);  // bancos de reflectores sobre el techo, encendidos de noche
+for(const z of[-1,1])for(const x of[-48,-16,16,48])for(let i=0;i<6;i++){const s=new THREE.Sprite(glowMat(0xeef4ff));s.scale.setScalar(4.5);s.position.set(x+(i%3-1)*2.2,25.5+(i/3|0)*1.6,z*52);FLOOD.add(s)}
+const WEATHER=[ // sky: cielo arriba / horizonte; hemi: cielo, suelo, fuerza; sun: color, fuerza, posición
+  {sky:['#2f6fc4','#b4d4ee'],fog:[0xb4cce0,190,520],hemi:[0xe2ecff,0x50663a,.58],sun:[0xfff0d6,1.1,[-60,70,-75]],dim:1},
+  {sky:['#02050d','#101b33'],stars:1,fog:[0x0b1222,170,420],hemi:[0xa8baff,0x1f2c1c,.36],sun:[0xf4f7ff,1.05,[-12,95,30]],flood:1,dim:.38},
+  {sky:['#4d555f','#959ca4'],fog:[0x7d858d,70,260],hemi:[0xc8d0da,0x34442c,.7],sun:[0xdde4ee,.32,[-30,85,20]],rain:1,dim:.75},
+];
+const SKY=WEATHER.map(w=>canvasTex(4,256,g=>{
+  const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,w.sky[0]);gr.addColorStop(.6,w.sky[1]);gr.addColorStop(1,w.sky[1]);g.fillStyle=gr;g.fillRect(0,0,4,256);
+}));
+const STARS=(()=>{const v=[];for(let i=0;i<600;i++){const a=Math.random()*7,e=.15+Math.random()*1.3;v.push(Math.cos(a)*Math.cos(e)*600,Math.sin(e)*600,Math.sin(a)*Math.cos(e)*600)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+  const p=new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:1.6,sizeAttenuation:false,fog:false}));scene.add(p);return p})();
+// Lluvia: gotas como rayitas que caen en una caja alrededor de la cancha
+const RAIN=(()=>{const n=LOWQ?1500:5000,v=new Float32Array(n*6);
+  for(let i=0;i<n;i++){v[i*6]=(Math.random()-.5)*150;v[i*6+1]=Math.random()*45;v[i*6+2]=-55+Math.random()*125}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(v,3));
+  const m=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xc8d2de,transparent:true,opacity:.5}));m.frustumCulled=false;m.n=n;scene.add(m);return m})();
+function rainUpdate(el){
+  const a=RAIN.geometry.attributes.position,v=a.array;
+  for(let i=0;i<RAIN.n;i++){const k=i*6;let y=v[k+1]-24*el;if(y<0)y+=45;v[k+1]=y;v[k]+=-3*el;if(v[k]<-75)v[k]+=150;v[k+3]=v[k]+.08;v[k+4]=y+.9;v[k+5]=v[k+2]}
+  a.needsUpdate=true;
+}
+const DIM=[];  // materiales de gradas y público que se oscurecen de noche
+const dimMat=m=>{if(!m.userData.c0){m.userData.c0=m.color.clone();DIM.push(m)}};
+function applyWeather(){
+  const w=WEATHER[S.weather]||WEATHER[0];
+  scene.background=SKY[WEATHER.indexOf(w)];scene.fog.color.set(w.fog[0]);scene.fog.near=w.fog[1];scene.fog.far=w.fog[2];
+  hemi.color.set(w.hemi[0]);hemi.groundColor.set(w.hemi[1]);hemi.intensity=w.hemi[2];
+  sun.color.set(w.sun[0]);sun.intensity=w.sun[1];sun.position.set(...w.sun[2]);
+  sunDisc.visible=w===WEATHER[0];sunDisc.position.copy(sun.position).setLength(560);
+  STARS.visible=!!w.stars;FLOOD.visible=!!w.flood;RAIN.visible=!!w.rain;
+  for(const m of DIM)m.color.copy(m.userData.c0).multiplyScalar(w.dim);  // de noche las gradas quedan en penumbra y la cancha iluminada
+  pitch.material.specular.set(w.rain?0x2c3430:0x050805);pitch.material.shininess=w.rain?42:6;  // césped mojado: brilla
+}
 const ownTex=(w,h,draw)=>{const t=canvasTex(w,h,draw);t.own=true;return t};  // textura de un solo jugador: se libera al terminar el partido
 const blobGeo=new THREE.CircleGeometry(.45,14),blobMat=new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.28,depthWrite:false});
 
@@ -598,14 +638,17 @@ const AW=124,AH=88,PX=16;
 const pitchTex=canvasTex(AW*PX,AH*PX,g=>{
   const W=AW*PX,H=AH*PX,rnd=Math.random;
   for(let i=0;i<AW/5;i++){ // franjas de corte con un leve degradado, como el césped cortado en dos sentidos
-    const gr=g.createLinearGradient(i*5*PX,0,(i+1)*5*PX,0),c=i&1?['#418f38','#3b8833']:['#367f2f','#32792c'];
+    const gr=g.createLinearGradient(i*5*PX,0,(i+1)*5*PX,0),c=i&1?['#4c9238','#478c34']:['#3a7a2c','#36742a'];
     gr.addColorStop(0,c[0]);gr.addColorStop(1,c[1]);g.fillStyle=gr;g.fillRect(i*5*PX,0,5*PX,H);
   }
-  for(let n=0;n<240;n++){ // parches irregulares más claros y más oscuros
-    const x=rnd()*W,y=rnd()*H,r=PX*(2+rnd()*7),rg=g.createRadialGradient(x,y,0,x,y,r);
-    rg.addColorStop(0,rnd()<.5?'rgba(15,45,10,.11)':'rgba(150,200,95,.08)');rg.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=rg;g.fillRect(x-r,y-r,2*r,2*r);
+  for(let n=0;n<(LOWQ?240:700);n++){ // parches irregulares: zonas más secas (amarillentas) y más tupidas (oscuras)
+    const x=rnd()*W,y=rnd()*H,r=PX*(1+rnd()*8),rg=g.createRadialGradient(x,y,0,x,y,r),k=rnd();
+    rg.addColorStop(0,k<.45?'rgba(12,40,8,.12)':k<.8?'rgba(140,190,80,.08)':'rgba(170,165,80,.08)');rg.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=rg;g.fillRect(x-r,y-r,2*r,2*r);
   }
-  for(let n=0;n<(LOWQ?40000:120000);n++){g.fillStyle=n&1?'rgba(18,48,14,.13)':'rgba(175,215,125,.08)';g.fillRect(rnd()*W,rnd()*H,1+rnd()*1.5,1+rnd()*3)}  // grano de la hierba
+  for(let n=0;n<(LOWQ?40000:220000);n++){ // briznas: rayitas cortas inclinadas hacia donde pasó la cortadora
+    const x=rnd()*W,y=rnd()*H,l=2+rnd()*4,s=(x/(5*PX)|0)&1?1:-1;
+    g.fillStyle=n%3===0?'rgba(190,225,130,.09)':'rgba(14,42,10,.14)';g.fillRect(x,y,1,l);if(n&1)g.fillRect(x+s,y+l*.5,1,l*.6);
+  }
   g.translate(W/2,H/2);g.scale(PX,PX);
   const wear=(x,y,r,a)=>{const rg=g.createRadialGradient(x,y,0,x,y,r);rg.addColorStop(0,`rgba(150,138,80,${a})`);rg.addColorStop(1,'rgba(150,138,80,0)');g.fillStyle=rg;g.fillRect(x-r,y-r,2*r,2*r)};
   for(const s of[-1,1]){wear(s*(HL-3),0,5.5,.28);wear(s*(HL-11),0,1.6,.3);wear(s*(HL-14),0,9,.08)}  // desgaste frente al arco y en el punto penal
@@ -622,14 +665,14 @@ const pitchTex=canvasTex(AW*PX,AH*PX,g=>{
   g.save();g.beginPath();g.rect(-HL,-HW,2*HL,2*HW);g.clip();for(const x of[-1,1])for(const y of[-1,1])arc(x*HL,y*HW,1);g.restore();
 });
 pitchTex.anisotropy=ren.capabilities.getMaxAnisotropy();
-const pitch=new THREE.Mesh(new THREE.PlaneGeometry(AW,AH),new THREE.MeshLambertMaterial({map:pitchTex}));
+const pitch=new THREE.Mesh(new THREE.PlaneGeometry(AW,AH),new THREE.MeshPhongMaterial({map:pitchTex,specular:0x050805,shininess:6}));
 pitch.rotation.x=-Math.PI/2;pitch.receiveShadow=true;scene.add(pitch);
 // Detalle de hojas de hierba repetido encima: se nota de cerca (cámara detrás del jugador) y se difumina de lejos
-const grassTex=canvasTex(256,256,g=>{
-  for(let n=0;n<3000;n++){const x=Math.random()*256,y=Math.random()*256,l=2+Math.random()*5;
-    g.strokeStyle=Math.random()<.55?'rgba(0,28,0,.4)':'rgba(205,240,150,.25)';g.lineWidth=1;g.beginPath();g.moveTo(x,y);g.lineTo(x+(Math.random()-.5)*2.5,y-l);g.stroke()}
+const grassTex=canvasTex(512,512,g=>{
+  for(let n=0;n<14000;n++){const x=Math.random()*512,y=Math.random()*512,l=3+Math.random()*7,k=Math.random();
+    g.strokeStyle=k<.5?'rgba(0,28,0,.4)':k<.85?'rgba(205,240,150,.25)':'rgba(220,215,140,.22)';g.lineWidth=1+(k>.9);g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(x,y-l*.6,x+(Math.random()-.5)*4,y-l);g.stroke()}
 });
-grassTex.wrapS=grassTex.wrapT=THREE.RepeatWrapping;grassTex.repeat.set(AW/3,AH/3);grassTex.anisotropy=pitchTex.anisotropy;
+grassTex.wrapS=grassTex.wrapT=THREE.RepeatWrapping;grassTex.repeat.set(AW/4,AH/4);grassTex.anisotropy=pitchTex.anisotropy;
 const grass=new THREE.Mesh(new THREE.PlaneGeometry(AW,AH),new THREE.MeshLambertMaterial({map:grassTex,transparent:true,opacity:.55,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
 grass.rotation.x=-Math.PI/2;grass.position.y=.005;grass.receiveShadow=true;scene.add(grass);
 const floor=new THREE.Mesh(new THREE.PlaneGeometry(500,500),mat('#1c2530'));floor.rotation.x=-Math.PI/2;floor.position.y=-.02;scene.add(floor);
@@ -672,12 +715,17 @@ const STANDS=new THREE.Group();scene.add(STANDS);  // tribunas de bloques (se oc
 (function buildStands(){
   const rows=LOWQ?12:18,step=LOWQ?.8:.62,list=[];
   for(let i=0;i<rows;i++){
-    const h=1.6+i*.45,o=40.5+i*.85+.425,m=mat(i&1?'#2c3446':'#262d3d');
+    const h=1.6+i*.45,o=40.5+i*.85+.425,m=mat(i&1?'#2c3446':'#262d3d');dimMat(m);
     const far=new THREE.Mesh(boxGeo(128,h,.85),m);far.position.set(0,h/2,-o);STANDS.add(far);
     for(const s of[-1,1]){const e=new THREE.Mesh(boxGeo(.85,h,84),m);e.position.set(s*(o+21.5),h/2,0);STANDS.add(e)}
     for(let u=-63;u<63;u+=step)if(Math.random()<.92)list.push([u+(i&1)*step/2,h,-o,Math.random()*3|0]);
     for(const s of[-1,1])for(let u=-41;u<41;u+=step)if(Math.random()<.92)list.push([s*(o+21.5),h,u+(i&1)*step/2,s<0?0:1]);
   }
+  makeFans(list,STANDS);
+})();
+// list: [x, altura del escalón, z, hinchada (0 local, 1 visitante, 2 mezclada)]
+function makeFans(list,parent){
+  if(FAN.body){FAN.body.parent.remove(FAN.body,FAN.head);FAN.body.dispose();FAN.head.dispose()}
   const n=FAN.n=list.length,m4=new THREE.Matrix4(),col=new THREE.Color();
   FAN.body=new THREE.InstancedMesh(boxGeo(.46,.62,.36),new THREE.MeshLambertMaterial(),n);
   FAN.head=new THREE.InstancedMesh(boxGeo(.26,.26,.26),new THREE.MeshLambertMaterial(),n);
@@ -688,8 +736,8 @@ const STANDS=new THREE.Group();scene.add(STANDS);  // tribunas de bloques (se oc
     FAN.y[i]=y;FAN.aff[i]=a;FAN.amp[i]=Math.random()<.45?Math.random()*.16:0;FAN.ph[i]=Math.random()*7;
   });
   FAN.bA=FAN.body.instanceMatrix.array;FAN.hA=FAN.head.instanceMatrix.array;
-  STANDS.add(FAN.body,FAN.head);
-})();
+  parent.add(FAN.body,FAN.head);dimMat(FAN.body.material);dimMat(FAN.head.material);
+}
 const crowdEx=[0,0];
 function crowdColors(k0,k1){
   const col=new THREE.Color(),c0=[k0[0],k0[0],k0[1],k0[2]],c1=[k1[0],k1[0],k1[1],k1[2]],neu=['#e8e8e8','#555f73','#b0413e','#3f6fb5'];
@@ -803,13 +851,35 @@ function loadStadium(){
       const sc=g.scene,wrap=new THREE.Group();
       // Las líneas de su cancha miden 4167 unidades de largo = 105 m; su centro queda en el nuestro y el largo pasa al eje x
       sc.position.set(-1205,59,2063.5);wrap.add(sc);wrap.scale.setScalar(105/4167);wrap.rotation.y=Math.PI/2;wrap.position.y=-.06;
+      let steps=null;
       sc.traverse(o=>{if(o.isMesh){
         o.castShadow=false;o.receiveShadow=false;o.matrixAutoUpdate=false;o.updateMatrix();
         if(o.material.transparent||/Glass/i.test(o.material.name))o.visible=false;  // el techo de vidrio tapa la cámara alta
+        if(o.material.name==='Beton_16')steps=o;  // escalones de concreto de las gradas
+        dimMat(o.material);
       }});
-      scene.add(wrap);STANDS.visible=false;floor.visible=false;res();
+      scene.add(wrap);STANDS.visible=false;floor.visible=false;
+      if(steps){wrap.updateMatrixWorld(true);makeFans(fanSpots(steps,GFX===2?.62:.8),scene)}
+      res();
     },undefined,e=>{console.warn('estadio',e);res()});
   }));
+}
+// Lugares para hinchas en el estadio realista: partes planas de los escalones, una por cuadrito de cell metros (la más alta)
+function fanSpots(o,cell){
+  const g=o.geometry,P=g.attributes.position,I=g.index,q=P.normalized?1/32767:1,mw=o.matrixWorld;  // posiciones comprimidas (meshopt)
+  const a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3(),n=new THREE.Vector3(),best=new Map();
+  const v=(i,t)=>t.set(P.getX(i)*q,P.getY(i)*q,P.getZ(i)*q).applyMatrix4(mw),cnt=I?I.count:P.count;
+  for(let k=0;k<cnt;k+=3){
+    v(I?I.getX(k):k,a);v(I?I.getX(k+1):k+1,b);v(I?I.getX(k+2):k+2,c);
+    const x=(a.x+b.x+c.x)/3,y=(a.y+b.y+c.y)/3,z=(a.z+b.z+c.z)/3;
+    n.subVectors(b,a).cross(c.sub(a));if(n.y<.9*n.length())continue;  // solo superficies que miran hacia arriba
+    if(y<.8||y>22||Math.abs(x)<57&&Math.abs(z)<40)continue;  // ni la cancha ni el techo
+    const key=Math.round(x/cell)*1e4+Math.round(z/cell),e=best.get(key);
+    if(!e||y>e[1])best.set(key,[x,y,z]);
+  }
+  const list=[];
+  for(const[x,y,z]of best.values())if(Math.random()<.93)list.push([x,y,z,Math.abs(x)>60?(x<0?0:1):Math.random()*3|0]);
+  return list;
 }
 function prepModel(scene){
   const wrap=new THREE.Group();wrap.add(scene);wrap.updateMatrixWorld(true);
@@ -2214,7 +2284,8 @@ function render(el){
   if(marker.visible)marker.position.set(u.pos.x,2.8+Math.sin(M.t*6)*.12,u.pos.z);
   const nx=M.nextP;nextMark.visible=marker.visible&&!!S.swInd&&!!nx&&!nx.off;if(nextMark.visible)nextMark.position.set(nx.pos.x,2.55,nx.pos.z);
   const near=Math.max(0,1-(HL-Math.abs(b.x))/30)*(Math.abs(b.z)<24?1:.4),heat=Math.max(M.heat,near*.7);
-  if(STANDS.visible&&(!LOWQ||M.frame%2===0))crowdUpdate(M.t,heat);
+  if(!LOWQ&&FAN.n<1e4||M.frame%2===0)crowdUpdate(M.t,heat);  // mucho público: se mueve cada dos cuadros
+  if(RAIN.visible)rainUpdate(el);
   if((crowdT-=el)<0){crowdT=.12;crowdSound(Math.max(heat,crowdEx[0],crowdEx[1]))}
   hud(el);
   const fd=M.fade;$('fade').style.opacity=fd?(fd.t<.22?fd.t/.22:Math.max(0,1-(fd.t-.22)/.22)):0;
@@ -2350,6 +2421,7 @@ $('sqreset').onclick=()=>{delete S.sq[sqTeam];saveS();sqSel=null;drawSquad();dra
 const SETS=[
   ['Pantalla','gfx','Calidad gráfica',['Baja','Media','Alta'],'Al cambiarla el juego se reinicia'],
   ['Pantalla','stadium','Estadio',['Clásico','Realista'],'Realista: estadio 3D detallado, más pesado. El juego se reinicia'],
+  ['Pantalla','weather','Clima y hora',['Día','Noche','Lluvia'],'Día con sol, noche con reflectores o partido bajo la lluvia'],
   ['Pantalla','full','Pantalla completa',['No','Sí']],
   ['Pantalla','fps','Contador de FPS',['No','Sí']],
   ['Pantalla','fpsUnlock','Límite de FPS',['60 (VSync)','Sin límite'],'Solo en la versión de PC. Sin límite usa todo lo que dé tu gráfica; se reinicia el juego','pc'],
@@ -2401,6 +2473,7 @@ function applySettings(){
   $('fps').style.display=S.fps?'':'none';$('radar').style.display=S.radar?'':'none';
   if(AU.master)AU.master.gain.value=AU.muted?0:S.vol/100;
   if(fullApplied!==S.full){fullApplied=S.full;setFull(S.full)}
+  applyWeather();
 }
 function setTouchUI(on){touchOn=on;document.body.classList.toggle('touch',on);$('touch').classList.toggle('hide',!on||M.ui!=='game'||M.paused);tbAtt=null}
 function play(demo){M.paused=false;cardShown[0]=cardShown[1]=null;cardSta[0]=cardSta[1]=-1;startMatch(selU,selC,demo);showUI(demo?'menu':'game');if(AU.ctx)AU.ctx.resume()}
@@ -2476,7 +2549,7 @@ function selfTest(){
 }
 if(Q.has('test'))selfTest();
 resize();autoKit();drawPick();applySettings();
-Promise.all([loadPlayerModel(),loadStadium(),setBall(S.ball),loadBoots()]).then(()=>{if(PM)for(const o of[REF,...LINES])dress(o);play(true);requestAnimationFrame(frame)});
+Promise.all([loadPlayerModel(),loadStadium(),setBall(S.ball),loadBoots()]).then(()=>{applyWeather();if(PM)for(const o of[REF,...LINES])dress(o);play(true);requestAnimationFrame(frame)});
 </script>
 </body>
 </html>
